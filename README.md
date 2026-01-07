@@ -71,6 +71,12 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ## Changelog
 
+### [1.2.0] - 2026-01-07
+- Added BuildMenu Module - dedicated "Modded" tab in build/crafting menu
+- Added CorruptedUnlockCleanup - auto-cleans corrupted unlock entries
+- Added log filtering for known harmless warnings
+- Fixed FMOD audio listener warnings
+
 ### [1.1.0] - 2025-01-06
 - Added ModdedTabModule for dedicated "Modded" tech tree category
 - All mods can now use category 7 for their unlocks

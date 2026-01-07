@@ -12,6 +12,7 @@ using TechtonicaFramework.Environment;
 using TechtonicaFramework.Narrative;
 using TechtonicaFramework.Equipment;
 using TechtonicaFramework.TechTree;
+using TechtonicaFramework.BuildMenu;
 
 namespace TechtonicaFramework
 {
@@ -26,9 +27,10 @@ namespace TechtonicaFramework
     {
         public const string MyGUID = "com.certifired.TechtonicaFramework";
         public const string PluginName = "TechtonicaFramework";
-        public const string VersionString = "1.1.0";
+        public const string VersionString = "1.2.0";
 
-        private static readonly Harmony Harmony = new Harmony(MyGUID);
+        // Exposed for modules to use - narrative module adds its own patches
+        public static readonly Harmony Harmony = new Harmony(MyGUID);
         public static ManualLogSource Log { get; private set; }
         public static TechtonicaFrameworkPlugin Instance { get; private set; }
 
@@ -60,6 +62,10 @@ namespace TechtonicaFramework
             // Initialize the ModdedTab system (always enabled - required for modded content)
             ModdedTabModule.Initialize(Log);
             Log.LogInfo("ModdedTab system initialized - all mods can use category 7 for unlocks");
+
+            // Initialize the BuildMenu module for modded items tab
+            BuildMenuModule.Initialize(Log);
+            Log.LogInfo("BuildMenu module initialized - modded items will have their own tab");
 
             // Initialize modules based on config
             InitializeModules();

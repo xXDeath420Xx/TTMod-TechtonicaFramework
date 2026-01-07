@@ -1,7 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
+using FMOD.Studio;
+using FMODUnity;
+using HarmonyLib;
 using TechtonicaFramework.Core;
+using TMPro;
 using UnityEngine;
 
 namespace TechtonicaFramework.Narrative
@@ -9,6 +14,7 @@ namespace TechtonicaFramework.Narrative
     /// <summary>
     /// Narrative Module - Provides dialogue triggering using the game's actual dialogue system.
     /// Integrates with VOPlaybackManager for voice and DialogueEntryPopupUI for display.
+    /// Includes patches to bypass localization for custom dialogue text.
     /// </summary>
     public class NarrativeModule : IFrameworkModule
     {
@@ -22,6 +28,9 @@ namespace TechtonicaFramework.Narrative
 
         // Track played dialogues
         private HashSet<string> playedDialogues = new HashSet<string>();
+
+        // Track custom NarrativeEntryData instances (to bypass localization)
+        internal static HashSet<NarrativeEntryData> customNarrativeEntries = new HashSet<NarrativeEntryData>();
 
         // Map our speaker IDs to game Speaker enum
         private static readonly Dictionary<string, NarrativeEntryData.Speaker> SpeakerMap = new Dictionary<string, NarrativeEntryData.Speaker>
@@ -41,10 +50,44 @@ namespace TechtonicaFramework.Narrative
             { "corrupted_sparks", NarrativeEntryData.Speaker.Unknown }
         };
 
+        // Speaker display names for custom speakers
+        private static readonly Dictionary<string, string> CustomSpeakerNames = new Dictionary<string, string>
+        {
+            { "ancient_ai", "Ancient AI" },
+            { "corrupted_sparks", "S̷p̴a̵r̷k̸s̵" }
+        };
+
         public void Initialize()
         {
             IsActive = true;
-            TechtonicaFrameworkPlugin.LogDebug("NarrativeModule: Initialized with game dialogue integration");
+            ApplyPatches();
+            TechtonicaFrameworkPlugin.LogDebug("NarrativeModule: Initialized with game dialogue integration and localization bypass");
+        }
+
+        private void ApplyPatches()
+        {
+            try
+            {
+                var harmony = TechtonicaFrameworkPlugin.Harmony;
+
+                // Patch StartNarrativeString to bypass localization for custom dialogue
+                var originalMethod = AccessTools.Method(typeof(DialogueEntryPopupUI), "StartNarrativeString");
+                var prefixMethod = new HarmonyMethod(typeof(NarrativePatches), nameof(NarrativePatches.StartNarrativeString_Prefix));
+
+                if (originalMethod != null)
+                {
+                    harmony.Patch(originalMethod, prefix: prefixMethod);
+                    TechtonicaFrameworkPlugin.LogDebug("NarrativeModule: Patched StartNarrativeString for localization bypass");
+                }
+                else
+                {
+                    TechtonicaFrameworkPlugin.Log.LogWarning("NarrativeModule: Could not find StartNarrativeString method");
+                }
+            }
+            catch (Exception ex)
+            {
+                TechtonicaFrameworkPlugin.Log.LogError($"NarrativeModule: Failed to apply patches: {ex.Message}");
+            }
         }
 
         public void Update()
@@ -106,8 +149,20 @@ namespace TechtonicaFramework.Narrative
         /// <summary>
         /// Register a custom dialogue entry.
         /// </summary>
-        public CustomDialogueEntry RegisterDialogue(string id, string speakerId, string text, float duration = 5f)
+        public CustomDialogueEntry RegisterDialogue(string id, string speakerId, string text, float duration = 5f, string voKey = null)
         {
+            // Get custom speaker display name if applicable
+            string customSpeakerName = null;
+            var customSpeaker = GetSpeaker(speakerId);
+            if (customSpeaker != null)
+            {
+                customSpeakerName = customSpeaker.DisplayName;
+            }
+            else if (CustomSpeakerNames.TryGetValue(speakerId.ToLower(), out var name))
+            {
+                customSpeakerName = name;
+            }
+
             var entry = new CustomDialogueEntry
             {
                 Id = id,
@@ -116,11 +171,13 @@ namespace TechtonicaFramework.Narrative
                 Duration = duration,
                 NextDialogueId = null,
                 Condition = null,
-                GameSpeaker = GetGameSpeaker(speakerId)
+                GameSpeaker = GetGameSpeaker(speakerId),
+                CustomSpeakerName = customSpeakerName,
+                VOKey = voKey
             };
 
             customDialogues[id] = entry;
-            TechtonicaFrameworkPlugin.LogDebug($"NarrativeModule: Registered dialogue '{id}' for speaker '{speakerId}'");
+            TechtonicaFrameworkPlugin.LogDebug($"NarrativeModule: Registered dialogue '{id}' for speaker '{speakerId}' (name={customSpeakerName ?? "default"})");
             return entry;
         }
 
@@ -192,6 +249,7 @@ namespace TechtonicaFramework.Narrative
 
         /// <summary>
         /// Display dialogue using the game's actual DialogueEntryPopupUI system.
+        /// Custom dialogue bypasses the localization system to avoid "Cannot Translate" errors.
         /// </summary>
         private void DisplayDialogueViaGameUI(CustomDialogueEntry entry)
         {
@@ -213,15 +271,20 @@ namespace TechtonicaFramework.Narrative
                 narrativeData.durationOnScreen = entry.Duration;
                 narrativeData.addToLogAfterFirstPlayback = false;
 
-                // For known game speakers, try to use voice
-                // Voice keys follow pattern like "sparks_idle_01" for existing game VO
-                // Our custom dialogue won't have voice, which is fine
-                narrativeData.shortTextVOKey = ""; // No voice for custom dialogue
+                // Store custom speaker name for display (will be read by patch)
+                narrativeData.name = entry.CustomSpeakerName ?? "";
+
+                // For voice, we can optionally use game VO keys if the speaker has them
+                // Leave empty for text-only dialogue (no voice)
+                narrativeData.shortTextVOKey = entry.VOKey ?? "";
+
+                // Track this as a custom entry so our patch knows to bypass localization
+                customNarrativeEntries.Add(narrativeData);
 
                 // Trigger the dialogue
                 dialoguePopup.OnTriggerNarrativeEntry(narrativeData);
 
-                TechtonicaFrameworkPlugin.LogDebug($"NarrativeModule: Triggered dialogue '{entry.Id}' via game UI");
+                TechtonicaFrameworkPlugin.LogDebug($"NarrativeModule: Triggered dialogue '{entry.Id}' via game UI (localization bypass active)");
 
                 // Handle chained dialogue
                 if (!string.IsNullOrEmpty(entry.NextDialogueId))
@@ -326,6 +389,8 @@ namespace TechtonicaFramework.Narrative
         public string NextDialogueId;
         public Func<bool> Condition;
         public NarrativeEntryData.Speaker GameSpeaker;
+        public string CustomSpeakerName; // Display name for custom speakers
+        public string VOKey; // Optional: existing game VO key for voice playback
     }
 
     /// <summary>
@@ -393,6 +458,142 @@ namespace TechtonicaFramework.Narrative
             if (!string.IsNullOrEmpty(startId))
             {
                 module.TriggerDialogue(startId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Harmony patches for the narrative system to bypass localization for custom dialogue.
+    /// </summary>
+    internal static class NarrativePatches
+    {
+        /// <summary>
+        /// Prefix patch for DialogueEntryPopupUI.StartNarrativeString.
+        /// For custom dialogue entries, sets text directly without going through localization.
+        /// This prevents "Cannot Translate" errors for custom dialogue text.
+        /// </summary>
+        public static bool StartNarrativeString_Prefix(DialogueEntryPopupUI __instance, NarrativeEntryData entryData)
+        {
+            // Check if this is a custom entry (one we created, not from game data)
+            if (!NarrativeModule.customNarrativeEntries.Contains(entryData))
+            {
+                // Not our custom entry - let the original method handle it normally
+                return true;
+            }
+
+            try
+            {
+                // Get private fields via reflection
+                var messageTextField = AccessTools.Field(typeof(DialogueEntryPopupUI), "messageText");
+                var speakerNameTextField = AccessTools.Field(typeof(DialogueEntryPopupUI), "speakerNameText");
+                var speakerPortraitCGField = AccessTools.Field(typeof(DialogueEntryPopupUI), "speakerPortraitCanvasGroup");
+                var speakerPortraitImageField = AccessTools.Field(typeof(DialogueEntryPopupUI), "speakerPortraitImage");
+                var showingMessageField = AccessTools.Field(typeof(DialogueEntryPopupUI), "_showingMessage");
+                var currentEntryField = AccessTools.Field(typeof(DialogueEntryPopupUI), "_currentEntryBeingShown");
+                var timeOnScreenField = AccessTools.Field(typeof(DialogueEntryPopupUI), "timeOnScreen");
+
+                var messageText = messageTextField?.GetValue(__instance) as TextMeshProUGUI;
+                var speakerNameText = speakerNameTextField?.GetValue(__instance) as TextMeshProUGUI;
+                var speakerPortraitCG = speakerPortraitCGField?.GetValue(__instance) as CanvasGroup;
+                var speakerPortraitImage = speakerPortraitImageField?.GetValue(__instance) as UnityEngine.UI.Image;
+
+                if (messageText == null || speakerNameText == null)
+                {
+                    TechtonicaFrameworkPlugin.LogDebug("NarrativePatches: Could not find text fields, falling back to original");
+                    return true;
+                }
+
+                // Set state
+                showingMessageField?.SetValue(__instance, true);
+                currentEntryField?.SetValue(__instance, entryData);
+
+                // SET TEXT DIRECTLY - bypass localization
+                // This is the key fix for "Cannot Translate" errors
+                messageText.text = entryData.shortText;
+
+                // Handle speaker
+                if (entryData.speaker == NarrativeEntryData.Speaker.None)
+                {
+                    speakerNameText.text = string.Empty;
+                    speakerPortraitCG?.ToggleAlpha(false);
+                }
+                else
+                {
+                    // Check for custom speaker name stored in entryData.name
+                    string speakerName = entryData.name;
+                    if (string.IsNullOrEmpty(speakerName))
+                    {
+                        // Use game's speaker info
+                        var speakerInfo = GameDefines.instance?.GetSpeakerInfo(entryData.speaker);
+                        speakerName = speakerInfo?._displayName ?? entryData.speaker.ToString();
+                    }
+
+                    // Set speaker name directly - bypass localization
+                    speakerNameText.text = speakerName;
+
+                    // Handle portrait
+                    var speakerInfo2 = GameDefines.instance?.GetSpeakerInfo(entryData.speaker);
+                    if (speakerInfo2?._speakerPortrait != null)
+                    {
+                        speakerPortraitCG?.ToggleAlpha(true);
+                        if (speakerPortraitImage != null)
+                            speakerPortraitImage.sprite = speakerInfo2._speakerPortrait;
+                    }
+                    else
+                    {
+                        speakerPortraitCG?.ToggleAlpha(false);
+                    }
+                }
+
+                // Handle duration
+                if (entryData.durationOnScreen >= 0f)
+                {
+                    timeOnScreenField?.SetValue(__instance, entryData.durationOnScreen);
+                }
+
+                // Handle voice (if VO key provided)
+                if (!string.IsNullOrEmpty(entryData.shortTextVOKey) && VOPlaybackManager.instance != null)
+                {
+                    var voInstance = VOPlaybackManager.instance.GetDialogueEventInstance(
+                        entryData.shortTextVOKey, entryData.speaker, out float voTrackLength);
+
+                    if (voInstance.isValid())
+                    {
+                        voInstance.getDescription(out var description);
+                        description.is3D(out var is3D);
+                        if (is3D)
+                        {
+                            voInstance.set3DAttributes(((MonoBehaviour)__instance).transform.To3DAttributes());
+                        }
+                        voInstance.start();
+                        TechtonicaFrameworkPlugin.LogDebug($"NarrativePatches: Started VO playback for key '{entryData.shortTextVOKey}'");
+                    }
+                }
+
+                // Start animation coroutine via reflection
+                var animMethod = AccessTools.Method(typeof(DialogueEntryPopupUI), "AnimCoroutine");
+                if (animMethod != null)
+                {
+                    var coroutine = animMethod.Invoke(__instance, null) as IEnumerator;
+                    if (coroutine != null)
+                    {
+                        __instance.StartCoroutine(coroutine);
+                    }
+                }
+
+                // Remove from tracking set (entry is now displayed)
+                NarrativeModule.customNarrativeEntries.Remove(entryData);
+
+                TechtonicaFrameworkPlugin.LogDebug($"NarrativePatches: Custom dialogue displayed (bypassed localization)");
+
+                // Skip original method
+                return false;
+            }
+            catch (Exception ex)
+            {
+                TechtonicaFrameworkPlugin.Log.LogError($"NarrativePatches: Error in prefix: {ex.Message}");
+                // Fall back to original method on error
+                return true;
             }
         }
     }

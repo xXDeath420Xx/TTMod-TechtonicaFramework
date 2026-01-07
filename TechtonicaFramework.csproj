@@ -53,6 +53,10 @@
       <HintPath>$(GameDir)\Techtonica_Data\Managed\UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(GameDir)\Techtonica_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="EquinoxsModUtils">
       <HintPath>$(PluginDir)\Equinox-EquinoxsModUtils\EquinoxsModUtils\EquinoxsModUtils.dll</HintPath>
       <Private>false</Private>
@@ -61,10 +65,14 @@
       <HintPath>$(PluginDir)\Equinox-EMUAdditions\EMUAdditions\EMUAdditions.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="FMODUnity">
+      <HintPath>$(GameDir)\Techtonica_Data\Managed\FMODUnity.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(GameDir)\Techtonica_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <MakeDir Directories="$(PluginDir)\$(AssemblyName)" />
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginDir)\$(AssemblyName)" />
-  </Target>
 </Project>

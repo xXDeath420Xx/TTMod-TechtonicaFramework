@@ -7,3 +7,4 @@ C:\Users\crawf\TechtonicaMods\NewMods\TechtonicaFramework\obj\Debug\net472\Techt
 C:\Users\crawf\TechtonicaMods\NewMods\TechtonicaFramework\obj\Debug\net472\TechtonicaFramework.csproj.CoreCompileInputs.cache
 C:\Users\crawf\TechtonicaMods\NewMods\TechtonicaFramework\obj\Debug\net472\TechtonicaFramework.dll
 C:\Users\crawf\TechtonicaMods\NewMods\TechtonicaFramework\obj\Debug\net472\TechtonicaFramework.pdb
+C:\Users\crawf\TechtonicaMods\NewMods\TechtonicaFramework\obj\Debug\net472\TechtonicaFramework.sourcelink.json

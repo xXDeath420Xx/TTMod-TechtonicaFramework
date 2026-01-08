@@ -7,8 +7,8 @@ repository = "https://thunderstore.io"
 [package]
 namespace = "CertiFried"
 name = "TechtonicaFramework"
-versionNumber = "1.2.0"
-description = "Core framework mod providing shared systems for health, damage, narrative, equipment, and environment mechanics for other CertiFried mods."
+versionNumber = "1.4.0"
+description = "Core framework with multiplayer compatibility, recipe cache fixes, graceful mod removal, and third-party mod patches. Includes health, narrative, equipment, and environment systems."
 websiteUrl = "https://github.com/xXDeath420Xx/TTMod-TechtonicaFramework"
 containsNsfwContent = false
 

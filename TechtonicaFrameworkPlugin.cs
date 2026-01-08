@@ -13,6 +13,8 @@ using TechtonicaFramework.Narrative;
 using TechtonicaFramework.Equipment;
 using TechtonicaFramework.TechTree;
 using TechtonicaFramework.BuildMenu;
+using TechtonicaFramework.Multiplayer;
+using TechtonicaFramework.Compatibility;
 
 namespace TechtonicaFramework
 {
@@ -27,7 +29,7 @@ namespace TechtonicaFramework
     {
         public const string MyGUID = "com.certifired.TechtonicaFramework";
         public const string PluginName = "TechtonicaFramework";
-        public const string VersionString = "1.2.0";
+        public const string VersionString = "1.4.0";
 
         // Exposed for modules to use - narrative module adds its own patches
         public static readonly Harmony Harmony = new Harmony(MyGUID);
@@ -39,12 +41,15 @@ namespace TechtonicaFramework
         public static EnvironmentModule EnvironmentModule { get; private set; }
         public static NarrativeModule NarrativeModule { get; private set; }
         public static EquipmentModule EquipmentModule { get; private set; }
+        public static MultiplayerModule MultiplayerModule { get; private set; }
 
         // Configuration
         public static ConfigEntry<bool> EnableHealthModule;
         public static ConfigEntry<bool> EnableEnvironmentModule;
         public static ConfigEntry<bool> EnableNarrativeModule;
         public static ConfigEntry<bool> EnableEquipmentModule;
+        public static ConfigEntry<bool> EnableMultiplayerModule;
+        public static ConfigEntry<bool> EnableReplacerExtensions;
         public static ConfigEntry<bool> DebugMode;
 
         private void Awake()
@@ -76,6 +81,9 @@ namespace TechtonicaFramework
             // Initialize corrupted unlock cleanup
             CorruptedUnlockCleanup.Initialize();
 
+            // Initialize recipe cache fix for modded content
+            RecipeCacheFix.Initialize();
+
             Log.LogInfo($"{PluginName} v{VersionString} loaded successfully!");
         }
 
@@ -92,6 +100,12 @@ namespace TechtonicaFramework
 
             EnableEquipmentModule = Config.Bind("Modules", "Enable Equipment Module", true,
                 "Enable custom equipment and vehicle systems");
+
+            EnableMultiplayerModule = Config.Bind("Modules", "Enable Multiplayer Module", true,
+                "Enable multiplayer compatibility fixes and sync");
+
+            EnableReplacerExtensions = Config.Bind("Modules", "Enable Replacer Extensions", true,
+                "Enable modded building support in the replacer tool");
 
             DebugMode = Config.Bind("General", "Debug Mode", false,
                 "Enable verbose debug logging");
@@ -126,6 +140,37 @@ namespace TechtonicaFramework
                 EquipmentModule.Initialize();
                 LogDebug("Equipment Module initialized");
             }
+
+            if (EnableMultiplayerModule.Value)
+            {
+                MultiplayerModule = new MultiplayerModule();
+                MultiplayerModule.Initialize();
+                LogDebug("Multiplayer Module initialized");
+
+                // Apply third-party compatibility patches
+                ThirdPartyPatches.Initialize();
+            }
+
+            if (EnableReplacerExtensions.Value)
+            {
+                ReplacerToolExtensions.Initialize();
+                // Register for game data loaded event to auto-register modded machines
+                EMU.Events.GameDefinesLoaded += OnGameDefinesLoadedForReplacer;
+                LogDebug("Replacer Tool Extensions initialized");
+            }
+        }
+
+        private static void OnGameDefinesLoadedForReplacer()
+        {
+            try
+            {
+                // Auto-detect and register modded machines for the replacer tool
+                ReplacerToolExtensions.AutoRegisterModdedMachines();
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning($"Failed to auto-register modded machines for replacer: {ex.Message}");
+            }
         }
 
         private void Update()
@@ -134,6 +179,7 @@ namespace TechtonicaFramework
             HealthModule?.Update();
             EnvironmentModule?.Update();
             EquipmentModule?.Update();
+            MultiplayerModule?.Update();
         }
 
         private void OnDestroy()
@@ -143,6 +189,7 @@ namespace TechtonicaFramework
             EnvironmentModule?.Shutdown();
             NarrativeModule?.Shutdown();
             EquipmentModule?.Shutdown();
+            MultiplayerModule?.Shutdown();
         }
 
         public static void LogDebug(string message)

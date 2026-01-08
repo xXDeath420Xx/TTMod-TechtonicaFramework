@@ -1,0 +1,10 @@
+{
+  "name": "TechtonicaFramework",
+  "version_number": "1.4.0",
+  "website_url": "https://github.com/CertiFried-Mods/TTMod-TechtonicaFramework",
+  "description": "Core framework providing shared utilities and APIs for CertiFried mods",
+  "dependencies": [
+    "BepInEx-BepInExPack-5.4.2100",
+    "Equinox-EquinoxsModUtils-6.1.1"
+  ]
+}

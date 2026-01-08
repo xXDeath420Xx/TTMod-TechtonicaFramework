@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TechtonicaFramework")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d9bd1730d703494f9a796218a155f6564641f382")]
 [assembly: System.Reflection.AssemblyProductAttribute("TechtonicaFramework")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TechtonicaFramework")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
